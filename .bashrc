@@ -25,3 +25,6 @@ export SSH_AUTH_SOCK=~/.ssh/ssh_auth_sock
 
 # Add your default key
 ssh-add -l > /dev/null || ssh-add ~/.ssh/keyfile 2>/dev/null
+
+# Alias ls
+alias l="ls -a"
