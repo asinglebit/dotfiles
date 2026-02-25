@@ -31,10 +31,10 @@ alias l="ls -a"
 
 # Auto setup tmux in main projects
 dib() {
-  root="/Users/ali/projects/work/dib-customer-web"
-  types="/Users/ali/projects/work/dib-customer-web/packages/types"
-  api="/Users/ali/projects/work/dib-customer-web/packages/api"
-  ui="/Users/ali/projects/work/dib-customer-web/packages/ui"
+  root="/home/rattleworks/projects/work/dib-customer-web"
+  types="/home/rattleworks/projects/work/dib-customer-web/packages/types"
+  api="/home/rattleworks/projects/work/dib-customer-web/packages/api"
+  ui="/home/rattleworks/projects/work/dib-customer-web/packages/ui"
 
   # ----------------------------
   # Create window in desired directory
