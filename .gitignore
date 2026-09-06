@@ -1,0 +1,10 @@
+# install.sh's backup convention, shared with the bazzite repo's
+# `just link-dotfiles`. These land in $HOME rather than here, but the pattern is
+# kept so a stray copy made inside the repo never gets committed.
+*.bak-*
+
+# Editor and OS droppings. .DS_Store earns its place here specifically because
+# this repo is meant to be checked out on a Mac.
+.DS_Store
+*.swp
+*~

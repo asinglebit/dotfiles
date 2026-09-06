@@ -10,6 +10,19 @@ go   = "latest"
 node = "lts"
 pnpm = "latest"
 
+# godot's version is Pay Per Paper's, not a preference: resolve_godot in its
+# project scripts runs `godot --version` and refuses anything but 4.6.3 stable,
+# on all three platforms.
+#
+# It has to be a HOST binary. A flatpak Godot -- Godots, or org.godotengine.Godot
+# -- loads libcore_godot.so under its runtime's glibc, which trails the host's by
+# a release or two. The extension is linked against the host's, so it fails to
+# resolve (acosf@GLIBC_2.43 on Fedora 44) and takes every Core* class down with it.
+#
+# "4.6.3-stable" is the whole string -- that is how the aqua registry names
+# Godot releases, and bare "4.6.3" does not resolve.
+godot = "4.6.3-stable"
+
 # rust is a rustup wrapper, not a replacement.
 #
 # mise's core:rust backend reports ~/.cargo/bin as the tool's bin path and
@@ -30,7 +43,18 @@ pnpm = "latest"
 #     left out here so we do not fetch a std for every target on every machine.
 #   - If a project ever gains a rust-toolchain.toml, do NOT also declare rust in
 #     that project's mise.toml: RUSTUP_TOOLCHAIN silently overrides the file.
-rust = { version = "stable", components = ["clippy", "rustfmt", "rust-analyzer", "rust-src"] }
+rust = [
+  { version = "stable", components = ["clippy", "rustfmt", "rust-analyzer", "rust-src"] },
+  # Pay Per Paper's shipping toolchain. Its build scripts call it by name
+  # (`cargo +1.98.1-<triple>`) and refuse to run if it is missing, so it has to
+  # exist as its own rustup toolchain -- "stable" resolving to the same compiler
+  # does not satisfy them. Listed second deliberately: mise takes the FIRST entry
+  # as primary, so RUSTUP_TOOLCHAIN stays "stable" and this entry only guarantees
+  # the toolchain is installed. Bare "1.98.1" is host-neutral, resolving to
+  # 1.98.1-x86_64-unknown-linux-gnu on Linux and 1.98.1-aarch64-apple-darwin on
+  # macOS -- which is what each platform's build.sh asks for.
+  { version = "1.98.1" },
+]
 
 # Global CLI tools belong here as "npm:<pkg>" rather than in
 # ~/.default-npm-packages, which mise starts warning about in 2026.11.0 and
