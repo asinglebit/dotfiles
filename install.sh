@@ -9,6 +9,8 @@
 #   <os>/.bashrc          -> ~/.bashrc          (dotfiles at an OS root go to $HOME)
 #   shared/config/**      -> ~/.config/**       (config/ trees go to $XDG_CONFIG_HOME)
 #   <os>/config/**        -> ~/.config/**
+#   shared/share/**       -> ~/.local/share/**  (share/ trees go to $XDG_DATA_HOME)
+#   <os>/share/**         -> ~/.local/share/**
 #
 # Links are made per FILE, never per directory, so a tree like ~/.config/tmux
 # can hold both our tmux.conf and TPM's plugins/ without one clobbering the
@@ -20,8 +22,9 @@ set -euo pipefail
 DRY_RUN=0
 [ "${1:-}" = "--dry-run" ] && DRY_RUN=1
 
-repo="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
 stamp="$(date +%Y%m%d-%H%M%S)"
 
 case "$(uname -s)" in
@@ -71,6 +74,17 @@ link_config_tree() {
     done < <(find "$base/config" -type f -print0 | sort -z)
 }
 
+# share/ trees -> $XDG_DATA_HOME. Desktop entries and their icons live here: an
+# XDG data path, not a config one, and per-user so nothing depends on the image.
+link_data_tree() {
+    local base="$1"
+    [ -d "$base/share" ] || return 0
+    while IFS= read -r -d '' file; do
+        local rel="${file#"$base/share"/}"
+        link "$file" "$data_home/$rel" ".local/share/$rel"
+    done < <(find "$base/share" -type f -print0 | sort -z)
+}
+
 # Dotfiles sitting directly in an OS root -> $HOME. Only real files, and never
 # the scripts/ or config/ subtrees, which are handled separately.
 link_home_dotfiles() {
@@ -83,11 +97,13 @@ link_home_dotfiles() {
 
 echo "shared:"
 link_config_tree "$repo/shared"
+link_data_tree   "$repo/shared"
 
 echo
 echo "$os:"
 link_home_dotfiles "$repo/$os"
 link_config_tree   "$repo/$os"
+link_data_tree     "$repo/$os"
 
 echo
 echo "done."

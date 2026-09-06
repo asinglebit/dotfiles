@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Godot Engine
+GenericName=Game Engine
+Comment=Multi-platform 2D and 3D game engine
+Exec=godot %f
+Icon=godot
+Terminal=false
+Categories=Development;IDE;
+MimeType=application/x-godot-project;
+StartupWMClass=Godot
+Keywords=godot;game;engine;

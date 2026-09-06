@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Pay Per Paper
+GenericName=Godot Project
+Comment=Open Pay Per Paper in the Godot editor
+Exec=sh -c "exec godot -e --path \\$HOME/projects/personal/payperpaper"
+Icon=godot
+Terminal=false
+Categories=Development;IDE;
+StartupWMClass=Godot
