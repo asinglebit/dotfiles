@@ -27,14 +27,24 @@ cursor-style = block
 selection-background = 2e2e2e
 selection-foreground = d8d8d8
 
-# Noto Sans Mono is what waybar uses. nerd-fonts 3.5.1 is installed and ghostty
-# also carries Nerd Font symbols as a built-in fallback, so glyph coverage holds
-# either way. Delete this line to get ghostty's bundled JetBrains Mono instead.
+# Hack Nerd Font Mono -- the same face as waybar, rofi and swaylock, so the
+# desktop is one typeface. This is the patched family, vendored into the image
+# by bazzite's build_files/10-sway-install.sh: Fedora has no Hack Nerd Font RPM
+# and the nerd-fonts package in the base image is symbols-only, a fallback that
+# supplies icons and no Latin glyphs.
+#
+# The Mono variant forces every glyph, icons included, to one cell -- that is
+# what keeps columns aligned in TUIs. Plain "Hack Nerd Font" draws icons
+# double-width, which looks better and misaligns lazygit. Both are installed,
+# so switching is just this line. Delete it for ghostty's bundled JetBrains
+# Mono instead.
 #
 # font-size is in points, not pixels, so it is not directly comparable to
 # waybar's 11px -- and the Dell runs at scale 2. This is the one value here
 # worth tuning by eye; it is a dotfile, so that is a relaunch, not a rebuild.
-font-family = Noto Sans Mono
+# Hack also runs shorter than Noto Sans Mono did (1.164em line height against
+# 1.362em), so the same 11 reads a touch smaller than it used to.
+font-family = Hack Nerd Font Mono
 font-size = 11
 
 # ghostty's GTK4 frontend draws its own headerbar by default, which would put a
@@ -44,9 +54,15 @@ window-decoration = none
 
 # sway hands each window an arbitrary pixel size, but ghostty's grid is whole
 # character cells -- the leftover that will not fill a cell has to go
-# somewhere. At zero padding that remainder is the only padding left, and
-# balance splits it across opposite edges rather than piling all of it on the
-# right and bottom.
+# somewhere. Zero on both axes is as far as the option itself goes; that
+# sub-cell remainder is geometry, not a setting, and cannot be removed.
+#
+# balance = false, which is ghostty's own default, is the rest of the way
+# there: the grid starts flush in the top-left corner and the entire remainder
+# lands on the right and bottom edges instead. `true` splits it across
+# opposite edges, which is less lopsided but puts a few pixels back along
+# every edge -- including the two that meet the desktop at the origin.
 window-padding-x = 0
 window-padding-y = 0
-window-padding-balance = true
+window-padding-balance = false
+
