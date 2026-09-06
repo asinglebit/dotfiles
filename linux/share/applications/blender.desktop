@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Blender
+GenericName=3D Modeler
+Comment=3D modeling, animation, rendering and post-production
+Exec=sh -c "exec \\$HOME/.local/share/mise/shims/blender \\"\\$@\\"" sh %f
+Icon=blender
+Terminal=false
+Categories=Graphics;3DGraphics;
+MimeType=application/x-blender;
+StartupWMClass=Blender
+Keywords=3d;cg;modeling;animation;sculpting;texturing;rendering;cycles;

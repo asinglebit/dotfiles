@@ -30,8 +30,8 @@ other.
 | `linux/.bash_profile` | → `~/.bash_profile`. Login shells; adds mise's **shims** activation |
 | `linux/scripts/` | The pieces `.bashrc` runs, numbered to fix the order |
 | `linux/config/ghostty/config` | → `~/.config/ghostty/config`. Currently Sway/GTK-tuned |
-| `linux/share/applications/` | → `~/.local/share/applications/`. Desktop entries for Godot and the Pay Per Paper project |
-| `linux/share/icons/` | → `~/.local/share/icons/`. The Godot app icon those entries name |
+| `linux/share/applications/` | → `~/.local/share/applications/`. Desktop entries for Blender, Godot and the Pay Per Paper project |
+| `linux/share/icons/` | → `~/.local/share/icons/`. The Blender and Godot app icons those entries name |
 | `macos/.zshrc` | → `~/.zshrc`. Same shape as the Linux side: a loader over `macos/scripts/*.sh` |
 | `macos/.zprofile` | → `~/.zprofile`. Login shells; adds mise's **shims** activation |
 | `macos/scripts/` | Darwin equivalents. Untested — there is no Mac yet |
@@ -76,46 +76,28 @@ check silently degraded into backing up and re-linking every file on each run.
 `-P` resolves to the physical path from either entry point, which is also what
 `.bashrc` already gets from its `readlink -f`.
 
-**The desktop entries name mise's shim by absolute path, never a bare `godot`.**
-The sway session's `PATH` is `/usr/local/bin:/usr/bin:/usr/local/sbin`: greetd
-starts it without a login shell, so `.bash_profile` never runs and the shims
-activation above never happens. `Exec=godot` therefore works when you test it in
-a terminal and fails silently from the launcher, which is a nasty way to lose an
-afternoon. Both entries go through `$HOME/.local/share/mise/shims/godot`, which
-also survives a version bump in a way `installs/<version>/godot` does not. Godot
-must also *be* a host binary: a flatpak one loads Pay Per Paper's GDExtension
-under the runtime's older glibc and fails to resolve it. That, and the image
-depending on nothing from this repo, is why these are user-scope.
+**The desktop entries name mise's shim by absolute path, never a bare `godot` or
+`blender`.** The sway session's `PATH` is `/usr/local/bin:/usr/bin:/usr/local/sbin`:
+greetd starts it without a login shell, so `.bash_profile` never runs and the
+shims activation above never happens. `Exec=blender` therefore works when you
+test it in a terminal and fails silently from the launcher, which is a nasty way
+to lose an afternoon. All three entries go through
+`$HOME/.local/share/mise/shims/`, which also survives a version bump in a way
+`installs/<version>/` does not. Godot must also *be* a host binary: a flatpak one
+loads Pay Per Paper's GDExtension under the runtime's older glibc and fails to
+resolve it. Blender is a host binary for a different reason — the tarball reaches
+the NVIDIA driver directly for OptiX and CUDA, with no
+`org.freedesktop.Platform.GL.nvidia-*` extension to keep version-matched against
+the host's. That, and the image depending on nothing from this repo, is why these
+are user-scope.
 
-**Both entries write `$` as `\\$`, inside double quotes.** The command is wrapped
-in `sh -c` so `$HOME` expands at launch rather than baking a username into a
-committed file, and the desktop-entry format unescapes once before the shell sees
-it. Single quotes are *reserved* by that format, so the inner argument has to use
-double quotes, and `godot.desktop` forwards `%f` through the
-`sh -c "… \\"\\$@\\"" sh %f` idiom. `desktop-file-validate` rejects every other
-spelling; run it after any edit.
-
-**`install.sh` resolves its own location with `pwd -P`.** It records that path
-inside every symlink it makes, and on an ostree system `/home` is a symlink to
-`var/home` — so plain `pwd` yielded `/home/...` when entered via `~` and
-`/var/home/...` otherwise. The two never compare equal, and the idempotence
-check silently degraded into backing up and re-linking every file on each run.
-`-P` resolves to the physical path from either entry point, which is also what
-`.bashrc` already gets from its `readlink -f`.
-
-**The desktop entries are user-scope, and `Exec=` is a bare `godot`.** They cannot
-live in the bazzite image, which deliberately depends on nothing from this repo,
-while Godot is a mise tool under `$HOME`. `Exec=godot` resolves through the shims
-directory `.bash_profile` puts on the login `PATH` — the mechanism above — which
-is what makes the entry work when rofi execs it with no shell. Godot must also
-*be* a host binary: a flatpak one loads Pay Per Paper's GDExtension under the
-runtime's older glibc and fails to resolve it.
-
-**`payperpaper.desktop` writes `$` as `\\$`.** Its command is wrapped in
-`sh -c` so `$HOME` expands at launch instead of being baked into a committed
-file, and the desktop-entry format unescapes once before the shell ever sees it.
-Single quotes are reserved by that format, so the inner argument has to use
-double quotes. `desktop-file-validate` rejects every other spelling.
+**All three entries write `$` as `\\$`, inside double quotes.** The command is
+wrapped in `sh -c` so `$HOME` expands at launch rather than baking a username
+into a committed file, and the desktop-entry format unescapes once before the
+shell sees it. Single quotes are *reserved* by that format, so the inner argument
+has to use double quotes, and `godot.desktop` and `blender.desktop` forward `%f`
+through the `sh -c "… \\"\\$@\\"" sh %f` idiom. `desktop-file-validate` rejects
+every other spelling; run it after any edit.
 
 **There is no rustup setup here, and that is not an omission.** mise's
 `core:rust` backend *is* rustup — it reports `~/.cargo/bin` as the tool's bin

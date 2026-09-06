@@ -23,6 +23,32 @@ pnpm = "latest"
 # Godot releases, and bare "4.6.3" does not resolve.
 godot = "4.6.3-stable"
 
+# blender is pinned to a MINOR, not "latest": .blend files are forward-
+# incompatible, so a scene saved by a 5.3 that arrived unattended will not
+# reopen in 5.2. "5.2" is fuzzy -- mise resolves it to the newest 5.2.x (5.2.1
+# today) and picks up 5.2.2 when it ships, but never crosses to 5.3 unless this
+# line changes.
+#
+# The aqua backend for blender is `type: http`, not a GitHub release -- it
+# fetches the official tarball from download.blender.org, the same bytes
+# blender.org serves. Flathub was the alternative and lost on staleness: still
+# on 5.2, built 2026-07-14, when upstream had already shipped 5.2.1.
+#
+# Like godot it has to be a HOST binary, but for a different reason: the tarball
+# talks to the NVIDIA driver directly for OptiX/CUDA, with no
+# org.freedesktop.Platform.GL.nvidia-* extension to keep version-matched against
+# the host's driver.
+#
+# Unlike godot, whose archive is a single self-contained binary, blender needs
+# the 5.2/ directory of bundled python and scripts that sits NEXT to its
+# executable -- it finds them by resolving /proc/self/exe. mise handles this by
+# making the extracted blender-5.2.1-linux-x64/ itself the tool's bin path and
+# running the binary in place, rather than linking or copying it up a level, so
+# that sibling directory is always where blender expects it. This is why there
+# is no installs/blender/5.2/blender the way there is an installs/godot/<v>/godot
+# -- `mise which blender` prints the in-place path instead.
+blender = "5.2"
+
 # rust is a rustup wrapper, not a replacement.
 #
 # mise's core:rust backend reports ~/.cargo/bin as the tool's bin path and
