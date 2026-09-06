@@ -1,35 +1,8 @@
-export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" # This loads nvm
+# dib -- one tmux window laid out for the customer-portal monorepo.
+#
+# Written to run under both bash and zsh (parallel arrays, explicit array-base
+# detection), so the macOS side can source the same logic later.
 
-# Load Angular CLI autocompletion.
-# source <(ng completion script)
-
-# Auto-start tmux sessions with shared windows
-if [[ -z "$TMUX" && -z "$NVIM" && -t 1 ]]; then
-  # Ensure the main session exists
-  if ! tmux has-session -t main 2>/dev/null; then
-    tmux new-session -d -s main
-  fi
-
-  # Create a new session sharing main's windows
-  new_name="dev_$(date +%Y%m%d_%H%M%S)"
-  tmux new-session -d -t main -s "$new_name"
-
-  # Add a new window to the new session
-  tmux new-window -t "$new_name" -n "work"
-
-  # Attach to the new session
-  exec tmux attach -t "$new_name"
-fi
-
-# Aliases
-alias g='~/projects/personal/guitar/target/release/guitar'
-alias n='nvim'
-alias l="ls -a"
-alias claude-work='CLAUDE_CONFIG_DIR=$HOME/.claude-work claude'
-alias claude-personal='CLAUDE_CONFIG_DIR=$HOME/.claude-personal claude'
-
-# Auto setup tmux in main projects
 dib() {
   root="$HOME/projects/work/customer-portal"
   types="$root/packages/types"
@@ -148,5 +121,3 @@ dib() {
     ) &
   done
 }
-
-eval "$(/Users/ali/.local/bin/mise activate zsh)"

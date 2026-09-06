@@ -1,0 +1,47 @@
+# mise global tool versions. Symlinked to ~/.config/mise/config.toml.
+#
+# OS-neutral on purpose: mise resolves the right build per platform, so this
+# one file serves Linux and macOS. Anything machine-specific belongs in
+# ~/.config/mise/config.local.toml, which mise layers ABOVE this file natively
+# and which is deliberately not versioned.
+
+[tools]
+go   = "latest"
+node = "lts"
+pnpm = "latest"
+
+# rust is a rustup wrapper, not a replacement.
+#
+# mise's core:rust backend reports ~/.cargo/bin as the tool's bin path and
+# selects the toolchain by exporting RUSTUP_TOOLCHAIN -- it installs rustup if
+# absent and otherwise adopts the existing ~/.rustup in place. So rustup keeps
+# doing everything it did: components, extra targets, nightly, cross-compiling.
+# What this line adds is that the toolchain is now declared rather than being
+# machine state.
+#
+# Consequences worth remembering:
+#   - Do NOT set MISE_RUSTUP_HOME / MISE_CARGO_HOME. Leaving them unset is what
+#     keeps mise on the standard ~/.rustup and ~/.cargo, so the existing
+#     toolchain and the cargo registry cache are reused rather than duplicated.
+#   - Components are reconciled on every `mise install`, so this list is
+#     self-healing and reproduces the toolchain on a fresh machine.
+#   - Cross-compile targets go in a project's own mise.toml as
+#     targets = ["wasm32-unknown-unknown"], or via `rustup target add`. They are
+#     left out here so we do not fetch a std for every target on every machine.
+#   - If a project ever gains a rust-toolchain.toml, do NOT also declare rust in
+#     that project's mise.toml: RUSTUP_TOOLCHAIN silently overrides the file.
+rust = { version = "stable", components = ["clippy", "rustfmt", "rust-analyzer", "rust-src"] }
+
+# Global CLI tools belong here as "npm:<pkg>" rather than in
+# ~/.default-npm-packages, which mise starts warning about in 2026.11.0 and
+# removes in 2027.11.0. The npm: backend also makes them independent of the
+# node version, so a node bump does not orphan them.
+#
+# [tools]
+# "npm:typescript" = "latest"
+
+# .nvmrc / .node-version / rust-toolchain.toml are opt-in and left off -- no
+# project here has one. Enable per tool with:
+#   mise settings add idiomatic_version_file_enable_tools node
+# Note this is NOT the `legacy_version_file` setting, which despite defaulting
+# to true does not do this; it is the pre-rename asdf-compat knob.
