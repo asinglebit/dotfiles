@@ -3,7 +3,7 @@
 #
 # Check edits with `ghostty +validate-config`.
 
-background = 2d353b
+background = 232326
 foreground = d8d8d8
 
 cursor-style = block
