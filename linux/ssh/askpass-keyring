@@ -1,0 +1,48 @@
+#!/usr/bin/sh
+# SSH_ASKPASS helper: answers a key passphrase from the login keyring.
+#
+# ssh-add(1) and ssh(1) call an askpass program with the prompt as $1 and read
+# the secret from its stdout, which is the only channel either of them offers
+# for a passphrase -- neither reads one from stdin. So unlocking a key without
+# a human requires a program, not a pipe, and this is it.
+#
+# Only ~/.config/systemd/user/ssh-add-key.service points SSH_ASKPASS here, and
+# only for the one ssh-add it runs at login. The session-wide SSH_ASKPASS stays
+# ksshaskpass: an unrelated host password prompt has to keep reaching a human
+# rather than being answered with silence from a keyring that holds no entry
+# for it.
+#
+# The secret is looked up by the key's *name*, never its path. On an ostree
+# system $HOME is /home/rattleworks for a shell and /var/home/rattleworks for
+# systemd -- same directory, two strings, and a keyring attribute is matched as
+# a string. Basenames sidestep that entirely.
+#
+# Store the passphrase once, per machine (it never leaves the keyring, and the
+# key file itself stays encrypted):
+#
+#   secret-tool store --label='ssh key passphrase (id_ed25519)' \
+#       dotfiles ssh-passphrase key id_ed25519
+#
+# On failure this prints nothing and exits non-zero. That is deliberate: the
+# unit's ssh-add then fails, the journal says why, and `AddKeysToAgent yes` in
+# ssh/config still asks the normal way on first use. A missing keyring entry
+# costs a passphrase prompt, never access.
+set -eu
+
+key_name="${SSH_ASKPASS_KEY_NAME:-id_ed25519}"
+
+if ! command -v secret-tool >/dev/null 2>&1; then
+    echo "askpass-keyring: secret-tool not installed" >&2
+    exit 1
+fi
+
+if ! secret_out="$(secret-tool lookup dotfiles ssh-passphrase key "$key_name")" ||
+        [ -z "$secret_out" ]; then
+    echo "askpass-keyring: no keyring entry for key '$key_name'" >&2
+    exit 1
+fi
+
+# No trailing newline is added: ssh reads the pipe until a newline or EOF, and
+# a newline that ended up inside the secret would be a passphrase that is not
+# the one that was stored.
+printf '%s' "$secret_out"

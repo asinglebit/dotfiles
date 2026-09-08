@@ -21,15 +21,31 @@ first. It links per *file*, never per directory, so a tree like `~/.config/tmux`
 can hold both our `tmux.conf` and TPM's `plugins/` without one clobbering the
 other.
 
+One step it cannot do for you, because it needs a secret typed in:
+
+```sh
+secret-tool store --label='ssh key passphrase (id_ed25519)' \
+    dotfiles ssh-passphrase key id_ed25519
+```
+
+That puts the ssh key's passphrase in the login keyring, where
+`ssh-add-key.service` reads it at login so nothing ever has to ask. `install.sh`
+prints the same command as a `todo` until it has been done, and `ssh-add -l`
+after the next login is the check.
+
 ## Layout
 
 | Path | What it does |
 | --- | --- |
-| `install.sh` | Detects the OS via `uname -s`, then links `shared/` plus `linux/` or `macos/` |
+| `install.sh` | Detects the OS via `uname -s`, links `shared/` plus `linux/` or `macos/`, then enables the systemd user units |
 | `linux/.bashrc` | → `~/.bashrc`. Sources `/etc/bashrc`, then `linux/scripts/*.sh` in order |
 | `linux/.bash_profile` | → `~/.bash_profile`. Login shells; adds mise's **shims** activation |
 | `linux/scripts/` | The pieces `.bashrc` runs, numbered to fix the order |
 | `linux/config/ghostty/config` | → `~/.config/ghostty/config`. Currently Sway/GTK-tuned |
+| `linux/config/environment.d/10-ssh-agent.conf` | → `~/.config/environment.d/`. `SSH_AUTH_SOCK` for everything in the session that is not a shell |
+| `linux/config/systemd/user/ssh-add-key.service` | → `~/.config/systemd/user/`. Loads the ssh key into the agent at login, passphrase from the keyring |
+| `linux/ssh/config` | → `~/.ssh/config`. `AddKeysToAgent yes`, and the identity this box signs with |
+| `linux/ssh/askpass-keyring` | → `~/.ssh/askpass-keyring`. The `SSH_ASKPASS` helper that unit answers with |
 | `linux/share/applications/` | → `~/.local/share/applications/`. Desktop entries for Blender, Godot and the Pay Per Paper project |
 | `linux/share/icons/` | → `~/.local/share/icons/`. The Blender and Godot app icons those entries name |
 | `macos/.zshrc` | → `~/.zshrc`. Same shape as the Linux side: a loader over `macos/scripts/*.sh` |
@@ -106,6 +122,48 @@ existing `~/.rustup` in place. Sourcing `~/.cargo/env` as well would re-prepend
 `~/.cargo/bin` ahead of mise's shims, which is the bug this layout replaced.
 `rustup` itself still works normally for components, targets and nightlies.
 
+**The ssh agent is systemd's, and a socket file that exists proves nothing.**
+`30-ssh-agent.sh` used to start its own agent and pin the socket to a fixed
+symlink at `~/.ssh/ssh_auth_sock`, guarded by `[ ! -S … ]`. `-S` follows the
+symlink and `~/.ssh` is persistent storage, so the first dead socket that landed
+there outlived a reboot, the guard read it as "socket, nothing to do" forever
+after, and every shell exported a path with no agent behind it — while the
+`ssh-add` on the next line failed into `2>/dev/null`. Silent: no key, no git, no
+error. What replaces it fixes the shape rather than that one instance. The
+socket is Fedora's socket-activated `ssh-agent.socket` under
+`$XDG_RUNTIME_DIR`, a tmpfs, so no boot can inherit a corpse. Liveness is tested
+with `ssh-add -l`, which exits 2 for "cannot reach an agent" and 1 for "reached
+one holding no keys" — the only reliable way to tell a live socket from a
+leftover file. And an inherited `SSH_AUTH_SOCK` is kept *only if it answers*,
+which is what preserves a forwarded agent over `ssh -A` while stepping over the
+kind of path that got frozen into `~/.ssh` last time.
+
+**Everything that is not a shell gets the agent from `environment.d`.**
+`start-sway(1)` evaluates the `environment.d(5)` generator itself, under
+`set -o allexport`, before it sources `/etc/sway/environment` — so
+`10-ssh-agent.conf` reaches the compositor and everything it launches, which is
+exactly the half of the desktop that never sources `.bashrc`: GUI git clients,
+editors, user services. Shells set the same value for themselves, which is what
+covers an ssh login or a bare TTY, where no user-manager environment arrives.
+`%t` is unit-file syntax and means nothing in that file, hence
+`${XDG_RUNTIME_DIR}`, which the generator expands from its own environment.
+
+**The passphrase comes out of the login keyring, for one `ssh-add` only.**
+`SSH_ASKPASS` is the only channel `ssh-add` offers for a passphrase — it reads
+none from stdin — so unlocking a key without a human takes a program,
+`~/.ssh/askpass-keyring`, not a pipe. That helper and `SSH_ASKPASS_REQUIRE=force`
+are set **inside `ssh-add-key.service` and nowhere else**: session-wide they
+would answer every unrelated host-password prompt with silence from a keyring
+that holds no entry for it, turning a prompt a human could have answered into a
+failure. `force` is needed at all because `ssh-add` consults an askpass only
+when it has no tty *and* `$DISPLAY` is set, and at `default.target` time no
+compositor has run. The key file stays encrypted either way; what the keyring
+holds is the passphrase, under the login password, unlocked by PAM. The lookup
+is keyed on the key's *basename*, never its path, because on an ostree system
+`$HOME` is `/home/…` for a shell and `/var/home/…` for systemd: same directory,
+two strings, and a keyring attribute is matched as a string. The same trap as
+`install.sh`'s `pwd -P`, one layer up.
+
 **The OS directories are self-contained, and that means some duplication.**
 `20-aliases.sh`, `40-dib.sh` and `90-tmux.sh` are byte-identical under `linux/`
 and `macos/`. That is deliberate: a machine only ever reads one OS directory, so
@@ -116,8 +174,8 @@ annoying, the fix is a `shared/scripts/` sourced before the OS one — but note
 
 Where the two genuinely differ is worth knowing: `00-env.sh` **prepends** brew on
 macOS via `brew shellenv` and **appends** it on Linux (Bazzite's policy), and
-`30-ssh-agent.sh` bootstraps an agent on Linux but only loads Keychain keys on
-macOS, where launchd already provides one.
+`30-ssh-agent.sh` resolves the agent systemd provides on Linux but only reloads
+Keychain keys on macOS, where launchd already provides one.
 
 **Machine-local escapes, so nothing has to be committed to be temporary:**
 `~/.bashrc.d/*` is sourced last and overrides anything above it, and

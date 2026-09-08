@@ -1,0 +1,19 @@
+# ~/.ssh/config
+#
+# OpenSSH has no XDG support and no include-a-directory of its own, so this is
+# one file linked straight into ~/.ssh by install.sh.
+
+Host *
+    # Add a key to the agent the first time it is actually used, rather than
+    # from a startup file. The passphrase is then asked for once per login, at
+    # a moment you caused -- a `git push` -- with a tty to type it into; every
+    # later shell, tmux pane and GUI app reuses the agent that
+    # scripts/30-ssh-agent.sh and environment.d/10-ssh-agent.conf point them
+    # at, and asks for nothing.
+    AddKeysToAgent yes
+
+    # Named even though ~/.ssh/id_ed25519 is already in OpenSSH's default list.
+    # It documents which key this machine signs with, and it is what makes the
+    # AddKeysToAgent above deterministic rather than dependent on which of the
+    # default names happens to exist.
+    IdentityFile ~/.ssh/id_ed25519

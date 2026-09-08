@@ -1,0 +1,56 @@
+# Load the ssh key into the session agent at login, once, with no prompt.
+#
+# The agent from ssh-agent.socket starts empty on every boot, and the key is
+# passphrase-protected. Without this unit the first thing to reach for a remote
+# has to ask a human -- fine in a terminal, useless for a GUI git client or any
+# tooling that has no tty to ask on. Loading the key at login instead means
+# everything downstream, tty or not, finds an agent that already holds it.
+#
+# The passphrase comes from the login keyring via ~/.ssh/askpass-keyring, so it
+# is encrypted on disk under the login password and unlocked by PAM at login.
+# The key file itself stays encrypted too -- this replaces the prompt, not the
+# passphrase.
+
+[Unit]
+Description=Load the ssh key into the session agent
+Documentation=man:ssh-add(1) man:secret-tool(1)
+Requires=ssh-agent.socket
+After=ssh-agent.socket dbus.socket
+# A machine without this key is not a failure, just a machine without it.
+ConditionPathExists=%h/.ssh/id_ed25519
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+
+# Without this the askpass helper's stderr reaches the journal tagged `sh`,
+# which `journalctl --user -u ssh-add-key.service` then does not show -- the
+# one place anybody debugging this unit would look.
+SyslogIdentifier=ssh-add-key
+
+# %t is $XDG_RUNTIME_DIR: the same socket scripts/30-ssh-agent.sh and
+# environment.d/10-ssh-agent.conf resolve to.
+Environment=SSH_AUTH_SOCK=%t/ssh-agent.socket
+
+# Scoped to this one unit on purpose. The session-wide SSH_ASKPASS stays
+# ksshaskpass, so an unrelated password prompt still reaches a human.
+#
+# REQUIRE=force because ssh-add consults an askpass program only when it has no
+# tty AND $DISPLAY is set. A service has no tty, but at default.target time no
+# compositor has run yet, so DISPLAY is not in the environment either -- force
+# is what decouples the decision from a variable that is not there.
+Environment=SSH_ASKPASS=%h/.ssh/askpass-keyring
+Environment=SSH_ASKPASS_REQUIRE=force
+
+# Retried because pam_gnome_keyring's unlock and this user manager are started
+# by the same login, with no ordering between them: on a cold boot the keyring
+# can still be a moment away from answering. Three tries, then give up and
+# leave it to `AddKeysToAgent yes` to ask the normal way.
+ExecStart=/bin/sh -c 'for try in 1 2 3; do ssh-add %h/.ssh/id_ed25519 && exit 0; sleep 2; done; exit 1'
+
+[Install]
+# default.target, not graphical-session.target: systemd asks that units not be
+# enabled into the session targets directly, and nothing here needs a display.
+# The cost is that a login with no keyring behind it -- an ssh login to this
+# box, a bare TTY -- runs it and fails harmlessly into the journal.
+WantedBy=default.target
