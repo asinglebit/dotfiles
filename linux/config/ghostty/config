@@ -1,24 +1,7 @@
-# Terminal chrome, matching the greyscale desktop.
+# Terminal chrome only, matching the greyscale desktop. The 16 ANSI colours
+# stay at ghostty's defaults, which every TUI depends on.
 #
-# Only the chrome is themed here: background, foreground, cursor, selection.
-# The 16 ANSI colours are left at ghostty's defaults on purpose -- syntax
-# highlighting, ls, diff and every TUI depend on them, and the greyscale
-# treatment is for the desktop furniture, not for program output.
-#
-# Palette, dark to light (shared with waybar/style.css):
-#   #1a1a1a  background   (desktop is #242424, so windows read darker,
-#                          the same relationship the bar already has)
-#   #2e2e2e  selection
-#   #5a5a5a  dim
-#   #9a9a9a  base
-#   #d8d8d8  bright - foreground
-#
-# ghostty takes hex with or without the leading '#'.
-#
-# Validate after editing, without launching a window:
-#
-#     ghostty +validate-config
-#
+# Check edits with `ghostty +validate-config`.
 
 background = 1a1a1a
 foreground = d8d8d8
@@ -27,42 +10,16 @@ cursor-style = block
 selection-background = 2e2e2e
 selection-foreground = d8d8d8
 
-# Hack Nerd Font Mono -- the same face as waybar, rofi and swaylock, so the
-# desktop is one typeface. This is the patched family, vendored into the image
-# by bazzite's build_files/10-sway-install.sh: Fedora has no Hack Nerd Font RPM
-# and the nerd-fonts package in the base image is symbols-only, a fallback that
-# supplies icons and no Latin glyphs.
-#
-# The Mono variant forces every glyph, icons included, to one cell -- that is
-# what keeps columns aligned in TUIs. Plain "Hack Nerd Font" draws icons
-# double-width, which looks better and misaligns lazygit. Both are installed,
-# so switching is just this line. Delete it for ghostty's bundled JetBrains
-# Mono instead.
-#
-# font-size is in points, not pixels, so it is not directly comparable to
-# waybar's 11px -- and the Dell runs at scale 2. This is the one value here
-# worth tuning by eye; it is a dotfile, so that is a relaunch, not a rebuild.
-# Hack also runs shorter than Noto Sans Mono did (1.164em line height against
-# 1.362em), so the same nominal size reads a touch smaller than it used to.
+# Mono forces every glyph, icons included, into one cell, which is what keeps
+# TUI columns aligned; plain "Hack Nerd Font" misaligns lazygit.
 font-family = Hack Nerd Font Mono
 font-size = 9
 
-# ghostty's GTK4 frontend draws its own headerbar by default, which would put a
-# titlebar back inside every window immediately after 20-appearance.conf took
-# sway's away. This is an enum (none/auto/client/server), not a boolean.
+# Otherwise the GTK4 frontend draws its own headerbar. Enum, not a boolean.
 window-decoration = none
 
-# sway hands each window an arbitrary pixel size, but ghostty's grid is whole
-# character cells -- the leftover that will not fill a cell has to go
-# somewhere. Zero on both axes is as far as the option itself goes; that
-# sub-cell remainder is geometry, not a setting, and cannot be removed.
-#
-# balance = false, which is ghostty's own default, is the rest of the way
-# there: the grid starts flush in the top-left corner and the entire remainder
-# lands on the right and bottom edges instead. `true` splits it across
-# opposite edges, which is less lopsided but puts a few pixels back along
-# every edge -- including the two that meet the desktop at the origin.
+# balance = false sends the sub-cell remainder of sway's window size to the
+# right and bottom edges rather than splitting it across opposite ones.
 window-padding-x = 0
 window-padding-y = 0
 window-padding-balance = false
-

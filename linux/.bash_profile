@@ -4,11 +4,9 @@ if [ -f ~/.bashrc ]; then
     . ~/.bashrc
 fi
 
-# Shims activation, in addition to the interactive `mise activate bash` in
-# scripts/10-mise.sh. This is the half GUI applications and editors get: they
-# inherit the login environment and never source an interactive rc, so without
-# it they see no mise-managed tools. Shims are a directory of stub executables,
-# so they keep working in a process that never re-runs a shell hook.
+# Shims are the half GUI applications and editors inherit: they get the login
+# environment and never source an interactive rc, so the hook in
+# scripts/10-mise.sh never runs for them.
 if command -v mise >/dev/null 2>&1; then
     eval "$(mise activate bash --shims)"
 fi

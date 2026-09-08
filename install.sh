@@ -1,28 +1,19 @@
 #!/usr/bin/env bash
-# Symlink this repo into $HOME. The repo holds the real files; $HOME only
-# references them.
+# Symlink this repo into $HOME, per FILE so a tree like ~/.config/tmux can hold
+# both our tmux.conf and TPM's plugins/. Anything overwritten is backed up.
 #
-# Deploys shared/ plus the directory matching this OS (linux/ or macos/), so a
-# machine only ever gets config it can use.
-#
-# Layout -> target:
-#   <os>/.bashrc          -> ~/.bashrc          (dotfiles at an OS root go to $HOME)
-#   shared/config/**      -> ~/.config/**       (config/ trees go to $XDG_CONFIG_HOME)
-#   <os>/config/**        -> ~/.config/**
-#   shared/share/**       -> ~/.local/share/**  (share/ trees go to $XDG_DATA_HOME)
-#   <os>/share/**         -> ~/.local/share/**
-#   <os>/ssh/**           -> ~/.ssh/**          (ssh/ trees go to ~/.ssh -- see below)
-#
-# Links are made per FILE, never per directory, so a tree like ~/.config/tmux
-# can hold both our tmux.conf and TPM's plugins/ without one clobbering the
-# other. This mirrors `just link-dotfiles` in the bazzite repo, which shares
-# the backup convention (<name>.bak-<timestamp>).
+#   <os>/.bashrc             -> ~/.bashrc
+#   {shared,<os>}/config/**  -> ~/.config/**
+#   {shared,<os>}/share/**   -> ~/.local/share/**
+#   {shared,<os>}/ssh/**     -> ~/.ssh/**
 
 set -euo pipefail
 
 DRY_RUN=0
 [ "${1:-}" = "--dry-run" ] && DRY_RUN=1
 
+# pwd -P: /home is a symlink to var/home here, and the two spellings never
+# compare equal, which turns the idempotence check below into a relink.
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
 data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
@@ -65,7 +56,6 @@ link() {
     printf '  linked     %s\n' "$rel"
 }
 
-# config/ trees -> $XDG_CONFIG_HOME, preserving the path below config/.
 link_config_tree() {
     local base="$1"
     [ -d "$base/config" ] || return 0
@@ -75,8 +65,6 @@ link_config_tree() {
     done < <(find "$base/config" -type f -print0 | sort -z)
 }
 
-# share/ trees -> $XDG_DATA_HOME. Desktop entries and their icons live here: an
-# XDG data path, not a config one, and per-user so nothing depends on the image.
 link_data_tree() {
     local base="$1"
     [ -d "$base/share" ] || return 0
@@ -86,13 +74,7 @@ link_data_tree() {
     done < <(find "$base/share" -type f -print0 | sort -z)
 }
 
-# ssh/ trees -> ~/.ssh. Not an XDG path and not $HOME either: OpenSSH looks in
-# exactly one place, honours no XDG variable, and cannot include a directory of
-# drop-ins the way sway or environment.d can. It also refuses a config file that
-# is group- or world-writable, so the modes the repo carries are what land here
-# -- 0644 for the config, 0755 for the askpass helper ssh-add has to exec. ~/.ssh
-# itself is forced back to 0700: link()'s mkdir -p would otherwise create it at
-# the umask on a fresh machine.
+# OpenSSH honours no XDG path, and ignores ~/.ssh unless it is 0700.
 link_ssh_tree() {
     local base="$1"
     [ -d "$base/ssh" ] || return 0
@@ -106,8 +88,6 @@ link_ssh_tree() {
     done < <(find "$base/ssh" -type f -print0 | sort -z)
 }
 
-# Dotfiles sitting directly in an OS root -> $HOME. Only real files, and never
-# the scripts/ or config/ subtrees, which are handled separately.
 link_home_dotfiles() {
     local base="$1"
     while IFS= read -r -d '' file; do
@@ -116,18 +96,9 @@ link_home_dotfiles() {
     done < <(find "$base" -maxdepth 1 -type f -name '.*' -print0 | sort -z)
 }
 
-# systemd user units. Two, both part of the ssh setup:
-#
-#   ssh-agent.socket    The socket-activated agent scripts/30-ssh-agent.sh and
-#                       config/environment.d/10-ssh-agent.conf point at. Fedora
-#                       ships it disabled and only Plasma wires it up, so on a
-#                       sway session enabling it is on us.
-#   ssh-add-key.service Loads the key into that agent at login, reading the
-#                       passphrase from the keyring. See the unit's own header.
-#
-# Enabled, not merely started: environment.d hands every app in the session the
-# socket path from the moment sway starts, and the first shell -- all the rc
-# file can react to -- may come minutes later or never.
+# ssh-agent.socket is the agent; ssh-add-key.service loads the key into it at
+# login. Fedora ships both disabled. Enabled rather than just started, because
+# apps get the socket path at session start, long before any shell runs.
 enable_user_units() {
     [ "$os" = linux ] || return 0
     command -v systemctl >/dev/null 2>&1 || return 0
@@ -136,8 +107,7 @@ enable_user_units() {
         return 0
     fi
 
-    # ssh-add-key.service arrives as a symlink this run may have just made;
-    # without a reload systemctl still sees the directory as it was.
+    # The service arrives as a symlink this run may have just made.
     if [ "$DRY_RUN" = 0 ]; then
         systemctl --user daemon-reload
     fi
@@ -159,12 +129,8 @@ enable_user_units() {
         return 0
     fi
 
-    # Started as well as enabled, so an install takes effect without a
-    # re-login. The socket unconditionally -- starting it only opens an idle
-    # listener. The key loader only once there is a passphrase to find, because
-    # without one it can do nothing but fail, and an installer that reports a
-    # failure for a step the machine has not been given the input for yet is
-    # just noise.
+    # Started too, so an install takes effect without a re-login -- the key
+    # loader only once the keyring has a passphrase for it to find.
     systemctl --user start ssh-agent.socket >/dev/null 2>&1 || true
 
     if command -v secret-tool >/dev/null 2>&1 &&
