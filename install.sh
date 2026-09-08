@@ -6,6 +6,7 @@
 #   {shared,<os>}/config/**  -> ~/.config/**
 #   {shared,<os>}/share/**   -> ~/.local/share/**
 #   {shared,<os>}/ssh/**     -> ~/.ssh/**
+#   <os>/library/**          -> ~/Library/**
 
 set -euo pipefail
 
@@ -48,6 +49,14 @@ link() {
     fi
 
     mkdir -p "$(dirname "$target")"
+    # The `ln -s` below is only safe because of this move. `ln -s src target`
+    # with a directory -- or a symlink to one -- already at target creates
+    # target/basename(src) instead of replacing it; see ln(1) and its -h flag.
+    # `[ -e ] || [ -L ]` is exhaustive: -e covers everything that exists, -L
+    # covers the one case it misses, a dangling symlink. So ln always runs
+    # against a name that does not exist. If this backup ever goes away, the
+    # replacement is `ln -sfn`, never `ln -sf` -- -f unlinks the *resolved*
+    # target, which for a symlink-to-directory is the directory's contents.
     if [ -e "$target" ] || [ -L "$target" ]; then
         mv -- "$target" "$target.bak-$stamp"
         printf '  backed up  %s -> %s.bak-%s\n' "$rel" "$rel" "$stamp"
@@ -56,15 +65,66 @@ link() {
     printf '  linked     %s\n' "$rel"
 }
 
+# Config directories linked WHOLE, in defiance of the per-file rule above.
+#
+# Karabiner-Elements is the only entry, and it has to be. Its writer unlink()s
+# karabiner.json before rewriting it, so a symlinked karabiner.json survives
+# exactly until the first save from the GUI and is a plain file from then on --
+# and while the symlink is there it does not notice config changes at all.
+# Upstream declined to fix this (issue #3248, closed "not planned") and its own
+# documentation says to link the directory instead. So ~/.config/karabiner is a
+# symlink into this repo and Karabiner writes straight into the working tree.
+# That is the good half of the trade: a change made in the GUI shows up as a
+# git diff. The bad half is automatic_backups/, which is churn and is gitignored.
+#
+# Entries are top-level directory names under config/. Keep this array
+# non-empty: bash 3.2 errors on "${arr[@]}" for an empty array under `set -u`.
+config_dir_links=(karabiner)
+
+# True when a path relative to config/ falls inside one of those directories.
+# Anchored at the top level deliberately -- a nested config/foo/karabiner/ is a
+# different directory and keeps getting ordinary per-file links. The trailing /
+# in the pattern is what requires a directory component, so a plain FILE named
+# karabiner is still linked normally; the name is quoted so it matches
+# literally rather than as a glob.
+under_dir_link() {
+    local rel="$1" name
+    for name in "${config_dir_links[@]}"; do
+        case "$rel" in "$name"/*) return 0 ;; esac
+    done
+    return 1
+}
+
+# config/ trees -> $XDG_CONFIG_HOME, preserving the path below config/.
+#
+# The skip is a safety interlock, not tidiness. Once ~/.config/karabiner is a
+# symlink into this repo, find still walks the repo's real files, and the
+# target computed for macos/config/karabiner/karabiner.json resolves back
+# THROUGH that symlink onto the source itself -- so link() would rename the
+# repo's own config to .bak-<stamp> and leave a self-referential symlink, with
+# .gitignore's *.bak-* hiding the evidence.
 link_config_tree() {
     local base="$1"
     [ -d "$base/config" ] || return 0
     while IFS= read -r -d '' file; do
         local rel="${file#"$base/config"/}"
+        under_dir_link "$rel" && continue
         link "$file" "$config_home/$rel" ".config/$rel"
     done < <(find "$base/config" -type f -print0 | sort -z)
 }
 
+# The exceptions above, linked as directories. Guarded on the source existing so
+# a name that only applies to one OS costs nothing on the other.
+link_config_dirs() {
+    local base="$1" name
+    for name in "${config_dir_links[@]}"; do
+        [ -d "$base/config/$name" ] || continue
+        link "$base/config/$name" "$config_home/$name" ".config/$name"
+    done
+}
+
+# share/ trees -> $XDG_DATA_HOME. Desktop entries and their icons live here: an
+# XDG data path, not a config one, and per-user so nothing depends on the image.
 link_data_tree() {
     local base="$1"
     [ -d "$base/share" ] || return 0
@@ -88,12 +148,32 @@ link_ssh_tree() {
     done < <(find "$base/ssh" -type f -print0 | sort -z)
 }
 
+# library/ trees -> ~/Library. LaunchAgents live here: launchd is the only
+# reader, so these are ordinary per-file links with no directory exception.
+# Not XDG and not overridable, hence the literal path rather than a *_home
+# variable beside config_home and data_home -- its absence from that block is
+# the point.
+link_library_tree() {
+    local base="$1"
+    [ -d "$base/library" ] || return 0
+    while IFS= read -r -d '' file; do
+        local rel="${file#"$base/library"/}"
+        link "$file" "$HOME/Library/$rel" "Library/$rel"
+    done < <(find "$base/library" -type f -print0 | sort -z)
+}
+
+# Dotfiles sitting directly in an OS root -> $HOME. Only real files, and never
+# the scripts/ or config/ subtrees, which are handled separately.
+#
+# .DS_Store is excluded by name: one Finder visit to macos/ creates it, and
+# without this the next run happily links ~/.DS_Store to it. .gitignore stops
+# it being committed, not linked.
 link_home_dotfiles() {
     local base="$1"
     while IFS= read -r -d '' file; do
         local rel="${file#"$base"/}"
         link "$file" "$HOME/$rel" "$rel"
-    done < <(find "$base" -maxdepth 1 -type f -name '.*' -print0 | sort -z)
+    done < <(find "$base" -maxdepth 1 -type f -name '.*' ! -name '.DS_Store' -print0 | sort -z)
 }
 
 # ssh-agent.socket is the agent; ssh-add-key.service loads the key into it at
@@ -149,8 +229,16 @@ HINT
     fi
 }
 
+# Tree before dirs, and the order is load-bearing. With a correct skip it makes
+# no difference, so this is defence in depth against the skip and
+# config_dir_links drifting apart: tree-first, a stale per-file link lands in
+# the REAL ~/.config and the dir walker then backs that whole directory up --
+# noisy, recoverable, outside the repo. Dirs-first, it writes through the fresh
+# symlink into the working tree, which is the failure link_config_tree's
+# comment describes.
 echo "shared:"
 link_config_tree "$repo/shared"
+link_config_dirs "$repo/shared"
 link_data_tree   "$repo/shared"
 link_ssh_tree    "$repo/shared"
 
@@ -158,8 +246,10 @@ echo
 echo "$os:"
 link_home_dotfiles "$repo/$os"
 link_config_tree   "$repo/$os"
+link_config_dirs   "$repo/$os"
 link_data_tree     "$repo/$os"
 link_ssh_tree      "$repo/$os"
+link_library_tree  "$repo/$os"
 
 echo
 echo "systemd:"
