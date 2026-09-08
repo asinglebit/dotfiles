@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  DiscreteScroll at login. Symlinked to ~/Library/LaunchAgents/ by install.sh.
+
+  ProgramArguments names the executable INSIDE the bundle, never `open -a`.
+  open hands the launch to LaunchServices and exits immediately; launchd would
+  read that exit as the job finishing and, with KeepAlive below, respawn it
+  forever. Running the binary directly is fine here because DiscreteScroll is
+  an LSUIElement: no dock tile, no menu bar, nothing needing LaunchServices.
+
+  KeepAlive means launchd restarts the process whenever it stops, including
+  when you quit it. To actually stop it, bootout the job. It also means
+  bootstrapping this before /Applications/DiscreteScroll.app exists leaves
+  launchd respawning into ENOENT on a throttle, so install the app first
+  (macos/bootstrap.sh does both, in that order).
+
+  Load it once, after the app is in place:
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.emreyolcu.DiscreteScroll.plist
+  Not `launchctl load`: macOS answers that one with
+  "Recommended alternatives: bootstrap | enable".
+    launchctl print     gui/$(id -u)/com.emreyolcu.DiscreteScroll
+    launchctl kickstart -k gui/$(id -u)/com.emreyolcu.DiscreteScroll
+    launchctl bootout   gui/$(id -u)/com.emreyolcu.DiscreteScroll
+
+  Unlike every other file this repo links, the symlink alone is NOT the whole
+  deployment: launchd reads this plist once, at bootstrap, so editing it in the
+  repo changes nothing until you bootout and bootstrap again.
+
+  On macOS 13 and later the job also registers with Background Task Management,
+  so you get a "Background Items Added" notification and an entry under System
+  Settings > General > Login Items and Extensions. That toggle is a one time
+  approval; while it is off, the job will not start at login whatever this file
+  says. Accessibility must be granted separately, in Privacy and Security.
+
+  Validate after editing:  plutil -lint <this file>
+-->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.emreyolcu.DiscreteScroll</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Applications/DiscreteScroll.app/Contents/MacOS/DiscreteScroll</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+</dict>
+</plist>
