@@ -23,3 +23,7 @@ window-decoration = none
 window-padding-x = 0
 window-padding-y = 0
 window-padding-balance = false
+
+# No "close this terminal?" dialog on quit; ghostty otherwise prompts whenever
+# shell integration thinks a process is still running.
+confirm-close-surface = false
