@@ -1,7 +1,7 @@
 # dotfiles
 
-Shell, toolchain and terminal config, versioned here and symlinked into `$HOME`.
-The repo holds the real files; the OS only references them.
+Shell, toolchain, terminal and desktop config, versioned here and symlinked
+into `$HOME`. The repo holds the real files; the OS only references them.
 
 Portable by design — everything here is meant to work on a Linux box and a Mac,
 so anything that is genuinely tied to one of them lives under that OS's
@@ -46,6 +46,17 @@ That puts the ssh key's passphrase in the login keyring, where
 prints the same command as a `todo` until it has been done, and `ssh-add -l`
 after the next login is the check.
 
+Neither of the two GUI apps whose config lives here is installed by any of that,
+and their config means nothing until they are:
+
+```sh
+brew install --cask nikitabobko/tap/aerospace   # own tap, not homebrew-cask
+```
+
+Karabiner-Elements is a signed `.pkg` from its GitHub releases rather than a
+cask, because it installs a system extension and a daemon. Both then want an
+Accessibility grant by hand, for the same SIP reason DiscreteScroll's is manual.
+
 ## Layout
 
 | Path | What it does |
@@ -65,6 +76,9 @@ after the next login is the check.
 | `macos/.zprofile` | → `~/.zprofile`. Login shells; adds mise's **shims** activation |
 | `macos/scripts/` | Darwin equivalents, plus `80-sdkman.sh` for the JVM tools mise does not own |
 | `macos/.zshenv` | → `~/.zshenv`. Exists to hold rustup's `. ~/.cargo/env` line, not to add one |
+| `macos/config/aerospace/aerospace.toml` | → `~/.config/aerospace/aerospace.toml`. AeroSpace, an i3-alike tiling WM. **Not** `~/.aerospace.toml`, which would shadow it — see below |
+| `macos/config/aerospace/ws.sh` | → `~/.config/aerospace/ws.sh`. Per-monitor 1–9 workspaces. AeroSpace workspace names are global, so monitor M owns the block `(M-1)*10 + 1..9` and `alt-N` never drags focus to another screen |
+| `macos/config/aerospace/newwin.sh` | → `~/.config/aerospace/newwin.sh`. "Another window of an app that is already running", which macOS has no generic verb for |
 | `macos/config/karabiner/` | → `~/.config/karabiner`. The one **directory** link, not per file — see below |
 | `macos/apps/DiscreteScroll.app` | Vendored, 172K, MIT. Homebrew's cask is disabled upstream, so there is nothing to `brew install` |
 | `macos/library/LaunchAgents/` | → `~/Library/LaunchAgents/`. Currently DiscreteScroll's "start at login" |
@@ -264,6 +278,50 @@ de-quarantined copy at a stable path is the fix, and a symlink would not be one 
 Gatekeeper and TCC both follow it to wherever the bundle really is. Accessibility
 itself, and the macOS 13+ "Login Items & Extensions" approval, stay manual: the TCC
 database is SIP-protected and nothing can grant them for you.
+
+**`~/.aerospace.toml` shadows this repo's copy, and nothing here can warn you.**
+AeroSpace looks for `~/.aerospace.toml` first and only falls back to
+`~/.config/aerospace/aerospace.toml`, so a file left at the legacy path wins
+outright and every edit made here does nothing — no error, just a config that
+never changes. It is invisible to the tooling too: it is not a link target, so
+`install.sh` never touches it and `--dry-run` cannot mention it. Moving an
+existing machine over therefore has exactly one manual step,
+`mv ~/.aerospace.toml ~/.aerospace.toml.bak-$(date +%Y%m%d-%H%M%S)`, and
+`aerospace config --config-path` prints the file actually loaded, which settles
+the question in one line whenever a reload seems to do nothing.
+
+**`exec-and-forget` is `/bin/bash -c`, which is why the bindings can say `$HOME`.**
+Everything after the command name is handed to bash verbatim — AeroSpace does no
+tokenising or escaping of its own — so ordinary shell expansion applies and the
+22 bindings that call `ws.sh` and `newwin.sh` address them as
+`"$HOME/.config/aerospace/…"` instead of baking a username into a repo that is
+public. Same reasoning as the desktop entries on the Linux side, and the quoting
+is deliberate for the same reason. `HOME` really is in that environment;
+`aerospace list-exec-env-vars` prints what the child gets.
+
+**AeroSpace prepends Homebrew to the exec `PATH` itself, and `ws.sh` needs it to.**
+AeroSpace's own process runs with `PATH=/usr/bin:/bin:/usr/sbin:/sbin` — a GUI
+app launched by launchd, so no login shell, no `.zprofile`, and none of the
+`00-env.sh` work above. What it hands to `exec-and-forget` is that with
+`/opt/homebrew/bin:/opt/homebrew/sbin` prepended — a literal baked into the
+AeroSpace binary, not something this repo or the config sets. That is
+load-bearing rather than incidental: `ws.sh` shells back out to `aerospace` to
+ask which monitor is focused, and `aerospace` is a brew binary, so every
+`alt-N` depends on it. Being a literal, it is also the Apple Silicon prefix
+only: on an Intel Mac that prepend names a directory that does not exist and
+`/usr/local/bin` is not inherited either, so the scripts would have to call
+`aerospace` by absolute path. `inherit-env-vars` is the knob governing what
+else comes through.
+
+**AeroSpace needs no LaunchAgent, and that asymmetry with DiscreteScroll is real.**
+`start-at-login = true` in the config makes the app register its own login item,
+so there is nothing for `macos/library/LaunchAgents/` to hold and nothing for
+`bootstrap.sh` to bootstrap — which is why adding a window manager did not touch
+either. Two grants stay manual. Accessibility, for the SIP reason above; and an
+Automation grant, because `newwin.sh`'s iTerm, Finder and Chrome branches send
+Apple Events. macOS attributes those to **AeroSpace**, the process that runs the
+script — not to the terminal you tested the script from, which is why it works
+by hand and prompts the first time you press the key.
 
 **`defaults` is a push, not a link, so it is not `install.sh`'s job.** A macOS
 preference domain has no symlinkable file: `cfprefsd` caches the values in memory and
