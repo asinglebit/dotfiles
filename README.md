@@ -334,6 +334,32 @@ their preferences once at launch; `launchctl kickstart -k` does that, and
 `killall cfprefsd` is the wrong tool — the write already went through cfprefsd, and
 killing it costs every other running app its cached preferences.
 
+**A per-app domain beats the global one, and neither has an agent to restart.**
+`defaults.sh` writes more than one domain now, and they end differently.
+`com.emreyolcu.DiscreteScroll` has exactly one reader, so the `kickstart` above makes
+that write visible on the spot. `NSConvolutionOverride1` — the window corner radius
+macOS 26 draws much rounder than 15 did, 8 points here and lower being squarer — is
+read by the apps themselves, so there is nothing to kickstart: each picks the value up
+the next time it launches, and already-open windows keep their old corners until then.
+It is a table of `<domain> <radius>` lines rather than one write because
+`NSGlobalDomain` is only the floor — an app's own domain overrides it, CFPreferences
+searching there first — so singling one app out is one more line. The key is
+undocumented and in none of Apple's headers, which makes it honoured at Apple's
+discretion rather than by contract: if the corners go round again after a system
+update, that table is the first thing to re-check rather than the last.
+
+**Chrome answers to neither, and no preference domain can reach it.** It is the one app
+worth naming, because the obvious fix for it does not work and the wasted attempt is
+cheap to inherit. Measured on 26.6.2 by capturing each window with
+`screencapture -o -l <id>` and reading the alpha channel along the corner: Finder takes
+the global 8 and lands at ~8pt, TextEdit given a per-app 2 comes out square, and Chrome
+sits at ~10pt with the key set in `com.google.Chrome` and Chrome launched *after* the
+write. Its binary references neither the key nor any corner radius switch of its own.
+That is consistent with where the key is read — Chromium draws its own window frame
+instead of taking AppKit's, so the AppKit read that consults it never happens in that
+process. There is nothing to set, which is why the table has a paragraph about Chrome
+and not a line for it.
+
 **SDKMAN sorts at 80, and the number matters in both directions.** `sdkman-init.sh`
 prepends its candidates to `PATH`, so anything that rebuilds `PATH` afterwards takes
 `java` away from it — the old monolithic `.zshrc` carried a "THIS MUST BE AT THE END

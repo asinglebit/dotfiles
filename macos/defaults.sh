@@ -46,5 +46,46 @@ else
     echo "  agent not loaded; run ./macos/bootstrap.sh"
 fi
 
+# Window corner radius -- NSConvolutionOverride1, a radius in points
+#
+# macOS 26 draws window corners much rounder than 15 did, and this is the knob
+# that pulls them back. Lower is squarer.
+#
+# NSGlobalDomain is the floor under every app, and a per-app domain beats it,
+# because CFPreferences searches an app's own domain before the global one. So
+# the table below reads as "the default, then the exceptions", and singling one
+# app out is one more line -- `com.apple.Notes 4`, say.
+#
+# Chrome is deliberately not in that table, and the line it would have is not
+# worth re-adding, because it does nothing. Measured on 26.6.2 by capturing each
+# window with `screencapture -o -l <id>` and reading the alpha channel along the
+# corner: Finder takes the global 8 and comes out at ~8pt, TextEdit with a
+# per-app 2 comes out square, and Chrome sits at ~10pt with
+# `com.google.Chrome NSConvolutionOverride1 = 8` set and having launched after
+# the write. Chrome's binary references neither this key nor any corner radius
+# switch of its own, which fits: Chromium draws its own window frame rather than
+# taking AppKit's, so the AppKit read that consults this key never happens in
+# that process and no preference domain can reach it.
+#
+# Undocumented, and that is the caveat worth carrying: the key is in none of
+# Apple's headers or docs, so its behaviour is what observation says it is and
+# nothing obliges a future system update to keep honouring it. If the corners go
+# round again after one, this is the first line to re-check rather than the last.
+# The `-float` is deliberate -- it is the type the key is read as.
+#
+# Nothing here pairs with a `kickstart` the way DiscreteScroll does above. There
+# is no one agent to restart: the readers are the apps themselves, and each picks
+# the value up the next time it launches. Already-open windows keep their old
+# corners until that app is relaunched, so logging out and back in is how to
+# catch all of them at once.
+while read -r domain radius; do
+    [ -n "$domain" ] || continue
+    defaults write "$domain" NSConvolutionOverride1 -float "$radius"
+    echo "$domain  NSConvolutionOverride1 = $(defaults read "$domain" NSConvolutionOverride1)"
+done <<'RADII'
+NSGlobalDomain  8
+RADII
+echo "  relaunch an app, or log out and back in, to see it"
+
 echo
 echo "done."
