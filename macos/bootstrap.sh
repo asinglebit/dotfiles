@@ -4,11 +4,8 @@
 #   ./macos/bootstrap.sh
 #
 # Run it AFTER ../install.sh, which is what puts the LaunchAgent plist in
-# ~/Library/LaunchAgents. install.sh is only a linker: every effect it has is a
-# symlink, so the repo stays the one real copy, --dry-run can name everything
-# it is about to do, and undoing it is deleting a link. Installing an app into
-# /Applications and bootstrapping a launchd job are neither of those shapes, so
-# they live here instead of being smuggled into the linker.
+# ~/Library/LaunchAgents. Installing an app into /Applications and bootstrapping
+# a launchd job are not symlinks, so they stay out of the linker.
 #
 # Idempotent. Re-running replaces the app and reloads the job.
 #
@@ -30,13 +27,11 @@ uid="$(id -u)"
 # `discretescroll` cask is disabled upstream and the only other source is a
 # GitHub release zip that may not outlive the project. It is 172K and MIT.
 #
-# COPIED into /Applications, not symlinked, and this is the whole point of the
-# exercise: an app run from ~/Downloads with the quarantine flag still set gets
-# App Translocation, so macOS executes it from a randomised read-only path under
-# /private/var/folders. The Accessibility (TCC) grant is keyed to the path it
-# resolves to, so it breaks every time that randomised path changes and the app
-# has to be re-approved by hand. A de-quarantined copy at a stable path in
-# /Applications is what stops that.
+# COPIED into /Applications, not symlinked: a quarantined app gets App
+# Translocation, and the Accessibility (TCC) grant is keyed to the randomised
+# path it then resolves to, so it needs re-approving by hand every time that
+# changes. A de-quarantined copy at a stable path stops it; the README's note
+# covers why a symlink would not.
 app_src="$os_dir/apps/DiscreteScroll.app"
 app_dst="/Applications/DiscreteScroll.app"
 

@@ -13,13 +13,26 @@ fi
 DOTFILES_OS_DIR="$(cd "$(dirname "$_self")" && pwd)"
 export DOTFILES="$(dirname "$DOTFILES_OS_DIR")"
 
-# Numeric prefixes are the load order, and 90-tmux.sh has to sort last: it ends
-# in `tmux attach && exit`, so nothing after it runs in the outer shell.
-for _script in "$DOTFILES_OS_DIR"/scripts/*.sh; do
-    [ -r "$_script" ] && . "$_script"
+# Numeric prefixes are ONE load order across both script directories:
+# shared/scripts/ for what is OS-neutral, macos/scripts/ for what is not. The
+# number decides, not the directory -- shared/scripts/90-tmux.sh has to sort
+# after macos/scripts/80-sdkman.sh, because it ends in `tmux attach && exit` and
+# nothing after it runs in the outer shell. Sourcing one tree and then the other
+# cannot produce that order, so the two are merged by basename.
+#
+# Only basenames go through the split, and those are repo-controlled
+# `NN-name.sh`, so a clone path with a space in it stays safe.
+for _name in ${(f)"$(
+    for _f in "$DOTFILES/shared/scripts"/*.sh(N) "$DOTFILES_OS_DIR/scripts"/*.sh(N); do
+        printf '%s\n' "${_f##*/}"
+    done | sort -u
+)"}; do
+    for _dir in "$DOTFILES/shared/scripts" "$DOTFILES_OS_DIR/scripts"; do
+        [ -r "$_dir/$_name" ] && . "$_dir/$_name"
+    done
 done
 
-unset _self _resolved _script DOTFILES_OS_DIR
+unset _self _resolved _name _dir DOTFILES_OS_DIR
 
 # Last, so a one-off on one box can override anything above.
 if [ -d ~/.zshrc.d ]; then

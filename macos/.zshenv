@@ -8,16 +8,8 @@
 #
 #     . "$HOME/.cargo/env"
 #
-# to this file, and ~/.cargo/env prepends ~/.cargo/bin to PATH. In a login or
-# interactive shell that is harmless -- mise activates afterwards and wins. The
-# case it breaks is a non-interactive, non-login zsh: `zsh -c ...`, a GUI app
-# spawning a shell, an editor's task runner. Those read this file and nothing
-# else, so they get ~/.cargo/bin with no mise shims, and cargo and rustc resolve
-# to rustup's default toolchain instead of the one
-# shared/config/mise/config.toml pins via RUSTUP_TOOLCHAIN. That is exactly the
-# drift the README's rustup note describes, in exactly the environment
-# .zprofile's shims activation was added to cover.
-#
-# Removing the line locally would only work until the next `rustup-init`. Owning
-# the file means the next one appends HERE, through the symlink, and a silent
-# regression shows up as a git diff instead.
+# to this file, which puts ~/.cargo/bin ahead of mise's shims in every
+# non-interactive zsh. Removing it locally works only until the next
+# `rustup-init`; owning the file means the next one appends HERE, through the
+# symlink, so the regression shows up as a git diff. The README's ".zshenv
+# exists to hold a line" note has the drift it otherwise causes.

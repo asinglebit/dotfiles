@@ -49,14 +49,12 @@ link() {
     fi
 
     mkdir -p "$(dirname "$target")"
-    # The `ln -s` below is only safe because of this move. `ln -s src target`
-    # with a directory -- or a symlink to one -- already at target creates
-    # target/basename(src) instead of replacing it; see ln(1) and its -h flag.
-    # `[ -e ] || [ -L ]` is exhaustive: -e covers everything that exists, -L
-    # covers the one case it misses, a dangling symlink. So ln always runs
+    # The `ln -s` below is only safe because of this move: with a directory --
+    # or a symlink to one -- already at target, `ln -s` creates
+    # target/basename(src) instead of replacing it. `[ -e ] || [ -L ]` is
+    # exhaustive (-L catches the dangling symlink -e misses), so ln always runs
     # against a name that does not exist. If this backup ever goes away, the
-    # replacement is `ln -sfn`, never `ln -sf` -- -f unlinks the *resolved*
-    # target, which for a symlink-to-directory is the directory's contents.
+    # replacement is `ln -sfn`, never `ln -sf` -- see the README for why.
     if [ -e "$target" ] || [ -L "$target" ]; then
         mv -- "$target" "$target.bak-$stamp"
         printf '  backed up  %s -> %s.bak-%s\n' "$rel" "$rel" "$stamp"
@@ -67,15 +65,11 @@ link() {
 
 # Config directories linked WHOLE, in defiance of the per-file rule above.
 #
-# Karabiner-Elements is the only entry, and it has to be. Its writer unlink()s
-# karabiner.json before rewriting it, so a symlinked karabiner.json survives
-# exactly until the first save from the GUI and is a plain file from then on --
-# and while the symlink is there it does not notice config changes at all.
-# Upstream declined to fix this (issue #3248, closed "not planned") and its own
-# documentation says to link the directory instead. So ~/.config/karabiner is a
-# symlink into this repo and Karabiner writes straight into the working tree.
-# That is the good half of the trade: a change made in the GUI shows up as a
-# git diff. The bad half is automatic_backups/, which is churn and is gitignored.
+# Karabiner-Elements is the only entry, and it has to be: its writer unlink()s
+# karabiner.json before rewriting it, so a symlinked file survives exactly until
+# the first save from the GUI, and is ignored entirely until then. Upstream
+# closed the fix as "not planned" (issue #3248) and documents linking the
+# directory instead. The README has the trade that buys, and its cost.
 #
 # Entries are top-level directory names under config/. Keep this array
 # non-empty: bash 3.2 errors on "${arr[@]}" for an empty array under `set -u`.

@@ -9,11 +9,9 @@
 *.swp
 *~
 
-# Karabiner-Elements churn. ~/.config/karabiner is a symlink to
-# macos/config/karabiner (see install.sh's config_dir_links), so everything
-# Karabiner writes lands in this working tree. karabiner.json and
-# assets/complex_modifications/ are the point and are committed; these are
-# rotated daily copies of the former and are not. Anchored to the one directory
-# rather than a bare `automatic_backups/` so it cannot quietly swallow a
-# same-named directory added later somewhere else.
+# Karabiner-Elements churn: ~/.config/karabiner is a directory symlink into this
+# repo (install.sh's config_dir_links), so everything Karabiner writes lands in
+# the working tree. These are its rotated daily copies of karabiner.json, which
+# is itself committed. Anchored to the one directory rather than a bare
+# `automatic_backups/` so it cannot swallow a same-named directory added later.
 macos/config/karabiner/automatic_backups/

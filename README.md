@@ -62,9 +62,9 @@ Accessibility grant by hand, for the same SIP reason DiscreteScroll's is manual.
 | Path | What it does |
 | --- | --- |
 | `install.sh` | Detects the OS via `uname -s`, links `shared/` plus `linux/` or `macos/`, then enables the systemd user units |
-| `linux/.bashrc` | → `~/.bashrc`. Sources `/etc/bashrc`, then `linux/scripts/*.sh` in order |
+| `linux/.bashrc` | → `~/.bashrc`. Sources `/etc/bashrc`, then `shared/scripts/` and `linux/scripts/` merged into one numeric order |
 | `linux/.bash_profile` | → `~/.bash_profile`. Login shells; adds mise's **shims** activation |
-| `linux/scripts/` | The pieces `.bashrc` runs, numbered to fix the order |
+| `linux/scripts/` | Only the pieces Linux does differently: `PATH`/brew, mise's shell name, the systemd ssh agent |
 | `linux/config/ghostty/config` | → `~/.config/ghostty/config`. Currently Sway/GTK-tuned |
 | `linux/config/environment.d/10-ssh-agent.conf` | → `~/.config/environment.d/`. `SSH_AUTH_SOCK` for everything in the session that is not a shell |
 | `linux/config/systemd/user/ssh-add-key.service` | → `~/.config/systemd/user/`. Loads the ssh key into the agent at login, passphrase from the keyring |
@@ -72,9 +72,9 @@ Accessibility grant by hand, for the same SIP reason DiscreteScroll's is manual.
 | `linux/ssh/askpass-keyring` | → `~/.ssh/askpass-keyring`. The `SSH_ASKPASS` helper that unit answers with |
 | `linux/share/applications/` | → `~/.local/share/applications/`. Desktop entries for Blender, Godot and the Pay Per Paper project |
 | `linux/share/icons/` | → `~/.local/share/icons/`. The Blender and Godot app icons those entries name |
-| `macos/.zshrc` | → `~/.zshrc`. Same shape as the Linux side: a loader over `macos/scripts/*.sh` |
+| `macos/.zshrc` | → `~/.zshrc`. Same shape as the Linux side, over `shared/scripts/` plus `macos/scripts/` |
 | `macos/.zprofile` | → `~/.zprofile`. Login shells; adds mise's **shims** activation |
-| `macos/scripts/` | Darwin equivalents, plus `80-sdkman.sh` for the JVM tools mise does not own |
+| `macos/scripts/` | The Darwin halves of the same three — brew prepended, `zsh`, Keychain — plus `80-sdkman.sh` for the JVM tools mise does not own |
 | `macos/.zshenv` | → `~/.zshenv`. Exists to hold rustup's `. ~/.cargo/env` line, not to add one |
 | `macos/config/aerospace/aerospace.toml` | → `~/.config/aerospace/aerospace.toml`. AeroSpace, an i3-alike tiling WM. **Not** `~/.aerospace.toml`, which would shadow it — see below |
 | `macos/config/aerospace/ws.sh` | → `~/.config/aerospace/ws.sh`. Per-monitor 1–9 workspaces. AeroSpace workspace names are global, so monitor M owns the block `(M-1)*10 + 1..9` and `alt-N` never drags focus to another screen |
@@ -84,6 +84,7 @@ Accessibility grant by hand, for the same SIP reason DiscreteScroll's is manual.
 | `macos/library/LaunchAgents/` | → `~/Library/LaunchAgents/`. Currently DiscreteScroll's "start at login" |
 | `macos/bootstrap.sh` | Installs the app to `/Applications`, de-quarantines it, bootstraps the agent. Run by hand |
 | `macos/defaults.sh` | `defaults write` lines for preference domains, which cannot be symlinked. Run by hand |
+| `shared/scripts/` | Sourced on both OSes: `20-aliases.sh`, `40-dib.sh`, `90-tmux.sh`. Nothing in here branches on `uname` |
 | `shared/config/mise/config.toml` | → `~/.config/mise/config.toml`. Tool versions, OS-neutral |
 | `shared/config/tmux/tmux.conf` | → `~/.config/tmux/tmux.conf`. XDG path, not `~/.tmux.conf` |
 
@@ -197,18 +198,22 @@ is keyed on the key's *basename*, never its path, because on an ostree system
 two strings, and a keyring attribute is matched as a string. The same trap as
 `install.sh`'s `pwd -P`, one layer up.
 
-**The OS directories are self-contained, and that means some duplication.**
-`20-aliases.sh`, `40-dib.sh` and `90-tmux.sh` are byte-identical under `linux/`
-and `macos/`. That is deliberate: a machine only ever reads one OS directory, so
-each one can be understood on its own without cross-referencing a shared tree.
-The cost is that a change to `dib()` has to be made twice. If that becomes
-annoying, the fix is a `shared/scripts/` sourced before the OS one — but note
-`90-tmux.sh` would have to stay per-OS regardless, because it must sort last.
+**`shared/scripts/` exists, and the numeric prefix is one order across both trees.**
+`20-aliases.sh`, `40-dib.sh` and `90-tmux.sh` were byte-identical under `linux/` and
+`macos/` — 151 lines kept in step by hand, 113 of them `dib()` — so they live in
+`shared/scripts/` and the OS directories keep only what genuinely differs. What makes
+this more than a move is the ordering: `shared/scripts/90-tmux.sh` has to run after
+`macos/scripts/80-sdkman.sh`, so sourcing one tree and then the other cannot produce
+the right order in principle, whichever way round you do it. The loaders merge the two
+directories by basename instead, which is also what makes the prefix mean the same
+thing everywhere instead of per-directory. Only basenames are word-split, and those
+are repo-controlled `NN-name.sh`, so a clone path with a space in it stays safe.
 
-Where the two genuinely differ is worth knowing: `00-env.sh` **prepends** brew on
-macOS via `brew shellenv` and **appends** it on Linux (Bazzite's policy), and
-`30-ssh-agent.sh` resolves the agent systemd provides on Linux but only reloads
-Keychain keys on macOS, where launchd already provides one.
+Where the two OS trees genuinely differ is what is left in them: `00-env.sh`
+**prepends** brew on macOS via `brew shellenv` and **appends** it on Linux (Bazzite's
+policy), `30-ssh-agent.sh` resolves the agent systemd provides on Linux but only
+reloads Keychain keys on macOS where launchd already runs one, `10-mise.sh` differs by
+one word, and `80-sdkman.sh` has no Linux counterpart at all.
 
 **`~/.config/karabiner` is a directory link, and it is the only one.**
 Karabiner-Elements' writer `unlink()`s `karabiner.json` before rewriting it, so a
@@ -338,10 +343,9 @@ killing it costs every other running app its cached preferences.
 `defaults.sh` writes more than one domain now, and they end differently.
 `com.emreyolcu.DiscreteScroll` has exactly one reader, so the `kickstart` above makes
 that write visible on the spot. `NSConvolutionOverride1` — the window corner radius
-macOS 26 draws much rounder than 15 did, 8 points here and lower being squarer — is
-read by the apps themselves, so there is nothing to kickstart: each picks the value up
-the next time it launches, and already-open windows keep their old corners until then.
-It is a table of `<domain> <radius>` lines rather than one write because
+macOS 26 draws much rounder than 15 did, 8 points here and lower being squarer — has
+no single reader, so there is nothing to kickstart: every AppKit app reads it, and
+already-open windows keep their old corners until each is relaunched. It is a table of `<domain> <radius>` lines rather than one write because
 `NSGlobalDomain` is only the floor — an app's own domain overrides it, CFPreferences
 searching there first — so singling one app out is one more line. The key is
 undocumented and in none of Apple's headers, which makes it honoured at Apple's
@@ -363,9 +367,10 @@ and not a line for it.
 **SDKMAN sorts at 80, and the number matters in both directions.** `sdkman-init.sh`
 prepends its candidates to `PATH`, so anything that rebuilds `PATH` afterwards takes
 `java` away from it — the old monolithic `.zshrc` carried a "THIS MUST BE AT THE END
-OF THE FILE" comment for exactly that reason. But it cannot be last either:
-`90-tmux.sh` ends in `tmux attach && exit`, so nothing sorted after it runs in the
-outer shell at all. It is macOS-only because SDKMAN is only installed here, and it is
+OF THE FILE" comment for exactly that reason. But it cannot be last
+either, for the reason the first note in this section gives: nothing sorted after
+`90-tmux.sh` runs in the outer shell. It is macOS-only because SDKMAN is only
+installed here, and it is
 not redundant with mise: mise owns `go`, `node`, `pnpm`, `rust` and `godot`, and no
 JVM tool.
 
