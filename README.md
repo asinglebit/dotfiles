@@ -85,6 +85,7 @@ Accessibility grant by hand, for the same SIP reason DiscreteScroll's is manual.
 | `macos/bootstrap.sh` | Installs the app to `/Applications`, de-quarantines it, bootstraps the agent. Run by hand |
 | `macos/defaults.sh` | `defaults write` lines for preference domains, which cannot be symlinked. Run by hand |
 | `shared/scripts/` | Sourced on both OSes: `20-aliases.sh`, `40-dib.sh`, `90-tmux.sh`. Nothing in here branches on `uname` |
+| `shared/prompts/system-prompt.md` | Appended to the built-in Claude Code prompt by the `claude-work` / `claude-personal` aliases. Not symlinked; read in place via `$DOTFILES` |
 | `shared/config/mise/config.toml` | → `~/.config/mise/config.toml`. Tool versions, OS-neutral |
 | `shared/config/tmux/tmux.conf` | → `~/.config/tmux/tmux.conf`. XDG path, not `~/.tmux.conf` |
 
