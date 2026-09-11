@@ -64,7 +64,7 @@ Accessibility grant by hand, for the same SIP reason DiscreteScroll's is manual.
 | `install.sh` | Detects the OS via `uname -s`, links `shared/` plus `linux/` or `macos/`, then enables the systemd user units |
 | `linux/.bashrc` | → `~/.bashrc`. Sources `/etc/bashrc`, then `shared/scripts/` and `linux/scripts/` merged into one numeric order |
 | `linux/.bash_profile` | → `~/.bash_profile`. Login shells; adds mise's **shims** activation |
-| `linux/scripts/` | Only the pieces Linux does differently: `PATH`/brew, mise's shell name, the systemd ssh agent |
+| `linux/scripts/` | Only the pieces Linux does differently: `PATH`/brew, mise's shell name, the systemd ssh agent, the Pay Per Paper aliases |
 | `linux/config/ghostty/config` | → `~/.config/ghostty/config`. Currently Sway/GTK-tuned |
 | `linux/config/environment.d/10-ssh-agent.conf` | → `~/.config/environment.d/`. `SSH_AUTH_SOCK` for everything in the session that is not a shell |
 | `linux/config/systemd/user/ssh-add-key.service` | → `~/.config/systemd/user/`. Loads the ssh key into the agent at login, passphrase from the keyring |
@@ -213,7 +213,10 @@ Where the two OS trees genuinely differ is what is left in them: `00-env.sh`
 **prepends** brew on macOS via `brew shellenv` and **appends** it on Linux (Bazzite's
 policy), `30-ssh-agent.sh` resolves the agent systemd provides on Linux but only
 reloads Keychain keys on macOS where launchd already runs one, `10-mise.sh` differs by
-one word, and `80-sdkman.sh` has no Linux counterpart at all.
+one word, and `80-sdkman.sh` has no Linux counterpart at all. The reverse is
+`linux/scripts/20-aliases.sh`, the aliases that call Pay Per Paper's Linux entry point;
+it shares its basename with `shared/scripts/20-aliases.sh`, which the loader sources
+first.
 
 **`~/.config/karabiner` is a directory link, and it is the only one.**
 Karabiner-Elements' writer `unlink()`s `karabiner.json` before rewriting it, so a
