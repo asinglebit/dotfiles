@@ -27,3 +27,25 @@ window-padding-balance = false
 # No "close this terminal?" dialog on quit; ghostty otherwise prompts whenever
 # shell integration thinks a process is still running.
 confirm-close-surface = false
+
+# Alt+1..9 belongs to tmux's window switching, so ghostty must not eat it for
+# its own tabs. Both spellings are bound by default: the logical key and the
+# physical one.
+keybind = alt+1=unbind
+keybind = alt+2=unbind
+keybind = alt+3=unbind
+keybind = alt+4=unbind
+keybind = alt+5=unbind
+keybind = alt+6=unbind
+keybind = alt+7=unbind
+keybind = alt+8=unbind
+keybind = alt+9=unbind
+keybind = alt+digit_1=unbind
+keybind = alt+digit_2=unbind
+keybind = alt+digit_3=unbind
+keybind = alt+digit_4=unbind
+keybind = alt+digit_5=unbind
+keybind = alt+digit_6=unbind
+keybind = alt+digit_7=unbind
+keybind = alt+digit_8=unbind
+keybind = alt+digit_9=unbind
